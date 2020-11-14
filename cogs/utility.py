@@ -3,6 +3,7 @@ import inspect
 import os
 import random
 import re
+from sys import stdout
 import traceback
 from contextlib import redirect_stdout
 from datetime import datetime
@@ -1912,18 +1913,33 @@ class Utility(commands.Cog):
                         description="No further updates required",
                         color=self.bot.main_color,
                     )
+                    embed.set_footer(text="Force update")
                     embed.set_author(
                         name=user["username"], icon_url=user["avatar_url"], url=user["url"]
                     )
                 await ctx.send(embed=embed)
             else:
+                # update fork if gh_token exists
+                try:
+                    await self.bot.api.update_repository()
+                except InvalidConfigError:
+                    pass
+
                 command = "git pull"
 
                 proc = await asyncio.create_subprocess_shell(command, stderr=PIPE, stdout=PIPE,)
+                err = await proc.stderr.read()
+                err = err.decode("utf-8").rstrip()
                 res = await proc.stdout.read()
                 res = res.decode("utf-8").rstrip()
 
-                if res != "Already up to date.":
+                if err and not res:
+                    embed = discord.Embed(
+                        title="Update failed", description=err, color=self.bot.error_color
+                    )
+                    await ctx.send(embed=embed)
+
+                elif res != "Already up to date.":
                     logger.info("Bot has been updated.")
 
                     embed = discord.Embed(title="Bot has been updated", color=self.bot.main_color,)
@@ -1945,6 +1961,7 @@ class Utility(commands.Cog):
                     embed = discord.Embed(
                         title="Already up to date", description=desc, color=self.bot.main_color,
                     )
+                    embed.set_footer(text="Force update")
                     await ctx.send(embed=embed)
 
     @commands.command(hidden=True, name="eval")
